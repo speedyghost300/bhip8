@@ -6,7 +6,6 @@
 #include "ram.h"
 #include "display.h"
 #include "timer.h"
-#include "tests.h"
 
 bool loadFile(const char* fileName, uint8_t* memory) {
 	FILE* file;
@@ -22,12 +21,6 @@ bool loadFile(const char* fileName, uint8_t* memory) {
 
 	fclose(file);
 	return true;
-}
-
-void init() {
-	memTest();
-	drawTest();
-	cpuTest();
 }
 
 int main() {
@@ -53,15 +46,15 @@ int main() {
 	uint64_t currentTime, lastTime, deltaTime;
 	lastTime = SDL_GetTicksNS();
 
-	clearDisplay(renderer);
-	setPC(&cpu, &mem[0x200]);
-
-	char fileName[30];
+	char fileName[50];
 	printf("Enter the file name that you would like to load: ");
 	if (scanf("%s", fileName) == 1) {
 		loadFile(fileName, mem);
 	}
 	
+	clearDisplay(renderer);
+	setPC(&cpu, &mem[0x200]);
+
 	//main program loop
 	while (!quit) {
 		currentTime = SDL_GetTicksNS();

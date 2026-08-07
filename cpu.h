@@ -16,10 +16,16 @@ struct CPU {
 struct CPU* cpu;
 
 enum OPCODES {
-	CLEAR_SCREEN = 0x0,
+	CLEAR_SCREEN = 0x0, //also includes code 00E0 for returning from subroutine
 	JUMP = 0x1,
+	SUBROUTINE = 0x2,
+	SKIP_E = 0x3,
+	SKIP_NE = 0x4, 
+	SKIP_XY_E = 0x5,
 	SET_REG = 0x6,
 	ADD_TO_REG = 0x7,
+	LOGICAL = 0x8,
+	SKIP_XY_NE = 0x9,
 	SET_INDEX_REG = 0xA,
 	DISPLAY = 0xD
 };

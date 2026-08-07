@@ -27,7 +27,6 @@ add_executable(BHIP8
     cpu.c
     display.c
     ram.c
-    tests.c
 )
 
 # Link SDL3

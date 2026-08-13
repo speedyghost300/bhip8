@@ -32,6 +32,7 @@ void decode(struct CPU* cpu, uint16_t ins) {
 
 	uint16_t addr = (n1 << 8) | (n2 << 4) | (n3); //variable used to store memory addresses
 	uint8_t val = (n2 << 4) | (n3); //variable used to store single bytes
+	uint8_t key; //for key presses
 
 	switch (n0) {
 	case CLEAR_SCREEN:
@@ -42,7 +43,7 @@ void decode(struct CPU* cpu, uint16_t ins) {
 			break;
 		case 0xE: //return from subroutine (00EE)
 			printf("command: returning from subroutine\n");
-			setPC(cpu, pop(&stack)); //pop memory address from stack
+			setPC(cpu, pop(cpu)); //pop memory address from stack
 			break;
 		}
 		break;
@@ -52,7 +53,7 @@ void decode(struct CPU* cpu, uint16_t ins) {
 		break;
 	case SUBROUTINE:
 		printf("command: subroutine called at 0x%p\n", cpu->pc);
-		push(&stack, cpu->pc); //push current address in pc to stack, then set pc to addr
+		push(cpu, cpu->pc); //push current address in pc to stack, then set pc to addr
 		setPC(cpu, &mem[addr]);
 		break;
 	case SKIP_E:
@@ -156,6 +157,7 @@ void decode(struct CPU* cpu, uint16_t ins) {
 				cpu->v[0xF] = 0;
 			}
 			cpu->v[n1] = cpu->v[n1] >> 1;
+			printf("command: bit shift register v[%X] to the right, new value is 0x%X\n", n1, cpu->v[n1]);
 			break;
 		case 0xE: //bit shift once to the left
 			if (cpu->v[n1] & 0b10000000 == 128) { //if shifted bit is 1, set v[F] to 1, else set to 0
@@ -165,6 +167,7 @@ void decode(struct CPU* cpu, uint16_t ins) {
 				cpu->v[0xF] = 0;
 			}
 			cpu->v[n1] = cpu->v[n1] << 1;
+			printf("command: bit shift register v[%X] to the left, new value is 0x%X\n", n1, cpu->v[n1]);
 			break;
 		}
 		break;
@@ -216,9 +219,163 @@ void decode(struct CPU* cpu, uint16_t ins) {
 		}
 
 		break;
+	case SKIP_IF_KEY:
+		key = keyPressed(); //get key scancode
+		switch (n3) {
+		case 0xE: //code EX9E: skip next ins if scancode is equal to value in v[X]
+			if (key == cpu->v[n1]) {
+				printf("command: key matches v[%X], skip instruction at addr 0x%p, move to addr 0x%p\n", n1, cpu->pc, cpu->pc+1);
+				setPC(cpu, cpu->pc+1);
+			}
+			else {
+				printf("command: condiditon not true, do not skip instruction\n");
+			}
+			break;
+		case 0x1: //code EXA1: skip next ins if scancode value in v[X] is NOT pressed
+			if (key != cpu->v[n1]) {
+				printf("command: key does not match v[%X], skip instruction at addr 0x%p, move to addr 0x%p\n", n1, cpu->pc, cpu->pc+1);
+				setPC(cpu, cpu->pc+1);
+			}
+			else {
+				printf("command: condiditon not true, do not skip instruction\n");
+			}
+			break;
+		}
+		break;
+	case MISC:
+		key = keyPressed();
+		switch (n3) {
+		case 0x7: //code FX07: set v[X] to value in delay timer
+			cpu->v[n1] = delay;
+			printf("command: set register v[%X] to value stored in delay, new value %X\n", n1, cpu->v[n1]);
+			break;
+		case 0x5:
+			switch (n2) {
+			case 0x1: //code FX15: set delay timer to value stored in v[X]
+				delay = cpu->v[n1];
+				printf("command: set delay timer to value stored in register v[%X], new value %X\n", n1, delay);
+				break;
+			case 0x5: //code FX55: store values from v[0]-v[X] in memory, starting from index
+				for (int reg = 0; reg <= n1; reg++) {
+					*((uint8_t*)cpu->i+reg) = cpu->v[reg];
+					printf("command: store value 0x%X from register v[%X] at addr 0x%p\n", cpu->v[reg], reg, (uint8_t*)(cpu->i+reg));
+				}
+				break;
+			case 0x6: //code FX65: load values for index to v[0]-v[X]
+				for (int reg = 0; reg <= n1; reg++) {
+					cpu->v[reg] = *((uint8_t*)cpu->i+reg);
+					printf("command: load value 0x%X from addr 0x%p to register v[%X]\n", *(uint8_t*)(cpu->i+reg), (uint8_t*)(cpu->i+reg), reg);
+				}
+				break;
+			}
+			break;
+		case 0x8:
+			sound = cpu->v[n1];
+			printf("command: set sound timer to value stored in register v[%X], new value %X\n", n1, sound);
+			break;
+		case 0xE: //code FX1E: add v[X] to index
+			(uint8_t*)cpu->i += cpu->v[n1];
+			printf("command: add value stored in v[%X] to index, new addr 0x%p\n", n1, cpu->i);
+			break;
+		case 0xA: //code FX0A: set v[X] to scancode if key is pressed, otherwise repeat instruction
+			if (key != 0) {
+				cpu->v[n1] = key;
+			}
+			else {
+				setPC(cpu, cpu->pc-1); //repeat instruction
+			}
+			break;
+		case 0x3: //code FX33: take number in v[X] and convert to decimal
+			*(uint8_t*)cpu->i = cpu->v[n1] / 100;
+			*((uint8_t*)cpu->i+1) = (cpu->v[n1] / 10) % 10;
+			*((uint8_t*)cpu->i+2) = cpu->v[n1] % 10;
+			break;
+		case 0x9: //code FX29: load font character
+			switch (n1) {
+			case 0x0:
+				cpu->i = &mem[0x050];
+				break;
+			case 0x1:
+				cpu->i = &mem[0x055];
+				break;
+			case 0x2:
+				cpu->i = &mem[0x05A];
+				break;
+			case 0x3:
+				cpu->i = &mem[0x05F];
+				break;
+			case 0x4:
+				cpu->i = &mem[0x064];
+				break;
+			case 0x5:
+				cpu->i = &mem[0x069];
+				break;
+			case 0x6:
+				cpu->i = &mem[0x06E];
+				break;
+			case 0x7:
+				cpu->i = &mem[0x073];
+				break;
+			case 0x8:
+				cpu->i = &mem[0x078];
+				break;
+			case 0x9:
+				cpu->i = &mem[0x07D];
+				break;
+			case 0xA:
+				cpu->i = &mem[0x082];
+				break;
+			case 0xB:
+				cpu->i = &mem[0x087];
+				break;
+			case 0xC:
+				cpu->i = &mem[0x08C];
+				break;
+			case 0xD:
+				cpu->i = &mem[0x091];
+				break;
+			case 0xE:
+				cpu->i = &mem[0x096];
+				break;
+			case 0xF:
+				cpu->i = &mem[0x09B];
+				break;
+			}
+			break;
+		}
+		break;
 	default:
 		printf("\n");
 		break;
 	}
 	printf("\n");
+}
+
+void initStack(struct CPU* cpu) {
+	cpu->sp = -1;
+	printf("initStack(): Stack pointer points to index %X\n", cpu->sp);
+}
+
+void push(struct CPU* cpu, uint16_t* addr) {
+	if (cpu->sp >= STACK_SIZE - 1) {
+		printf("push(): The stack is full!\n");
+	}
+	else {
+		cpu->sp++;
+		stack[cpu->sp] = addr;
+		printf("push(): Pushed memory address 0x%p to stack index %X\n", stack[cpu->sp], cpu->sp);
+	}
+}
+
+uint16_t* pop(struct CPU* cpu) {
+	if (cpu->sp < 0) {
+		printf("pop(): The stack is empty!\n");
+		return NULL;
+	}
+	else {
+		printf("pop(): Popped memory address 0x%p from stack index %X\n", stack[cpu->sp], cpu->sp);
+		uint16_t* addr = stack[cpu->sp]; //can't do pointer math in the return statement so have to use a temp variable
+		cpu->sp--;
+		return addr;
+	}
 }

@@ -7,8 +7,10 @@
 #include "display.h"
 #include "ram.h"
 #include "timer.h"
+#include "keypad.h"
 
 struct CPU {
+	int8_t sp; //stack pointer
 	uint16_t *pc; //program counter
 	uint16_t *i; //index register
 	uint8_t v[16]; //general purpose variable registers
@@ -27,7 +29,9 @@ enum OPCODES {
 	LOGICAL = 0x8,
 	SKIP_XY_NE = 0x9,
 	SET_INDEX_REG = 0xA,
-	DISPLAY = 0xD
+	DISPLAY = 0xD,
+	SKIP_IF_KEY = 0xE,
+	MISC = 0xF
 };
 
 //set the program counter so that it points at a specific address
@@ -38,6 +42,15 @@ uint16_t fetch(struct CPU* cpu);
 
 //based on the fetched instruction, execute the command
 void decode(struct CPU* cpu, uint16_t ins);
+
+//initialize the stack
+void initStack(struct CPU* cpu);
+
+//push memory address to stack, if not full
+void push(struct CPU* cpu, uint16_t* addr);
+
+//pop most recent address from stack
+uint16_t* pop(struct CPU* cpu);
 
 #endif
 

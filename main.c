@@ -43,16 +43,18 @@ int main() {
 		return -1;
 	}
 
-	uint64_t currentTime, lastTime, deltaTime;
+	uint64_t currentTime, lastTime, deltaTime, deltaTime2;
 	lastTime = SDL_GetTicksNS();
-
+	
 	char fileName[50];
 	printf("Enter the file name that you would like to load: ");
 	if (scanf("%s", fileName) == 1) {
 		loadFile(fileName, mem);
 	}
 	
+	loadFont();
 	clearDisplay(renderer);
+	initStack(&cpu);
 	setPC(&cpu, &mem[0x200]);
 
 	//main program loop

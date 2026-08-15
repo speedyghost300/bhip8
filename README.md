@@ -9,9 +9,8 @@ You will need CMake (at least v3.2.4) and a compiler compatible with C11. Use CM
 ## Controls
 
 The left side of the keyboard is used as the keypad. The table below is a visual reference that includes the corresponding hex codes for each key.
-
-|											|   
-|-------------------------------------------|   
+|          |          |          |          |
+|:---:     |  :---:   |:---:     | :---:    | 
 | 1 (0x01) | 2 (0x02) | 3 (0x03) | 4 (0x0C) |   
 | Q (0x04) | W (0x05) | E (0x06) | R (0x0D) |
 | A (0x07) | S (0x08) | D (0x09) | F (0x0E) |

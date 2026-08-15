@@ -32,7 +32,7 @@ void decode(struct CPU* cpu, uint16_t ins) {
 
 	uint16_t addr = (n1 << 8) | (n2 << 4) | (n3); //variable used to store memory addresses
 	uint8_t val = (n2 << 4) | (n3); //variable used to store single bytes
-	uint8_t key; //for key presses
+	uint8_t key; //for key presses, set default as 0xFF
 
 	switch (n0) {
 	case CLEAR_SCREEN:
@@ -123,50 +123,58 @@ void decode(struct CPU* cpu, uint16_t ins) {
 			printf("command: register v[%X] logical XOR with v[%X], new value is 0x%X\n", n1, n2, cpu->v[n1]);
 			break;
 		case 0x4: //code 8XY4: v[X] = v[X] + v[Y]
-			if ((cpu->v[n1] + cpu->v[n2]) > 255) { //if value > 255 (0xFF), set v[F] to 1
+			uint16_t sum = cpu->v[n1] + cpu->v[n2];
+			cpu->v[n1] = sum & 0xFF; //preform the operation first, then set flags
+			if (sum > 255) { //if value > 255 (0xFF), set v[F] to 1
 				cpu->v[0xF] = 1;
 			}
-			cpu->v[n1] += cpu->v[n2];
+			else {
+				cpu->v[0xF] = 0;
+			}
 			printf("command: add value of register v[%X] to register v[%X], new value is 0x%X\n", n2, n1, cpu->v[n1]);
 			break;
 		case 0x5: //code 8XY5: v[X] = v[X] - v[Y]
-			if (cpu->v[n1] >= cpu->v[n2]) {
+			uint8_t x = cpu->v[n1];
+			cpu->v[n1] -= cpu->v[n2];
+			if (x >= cpu->v[n2]) {
 				cpu->v[0xF] = 1;
 			}
 			else {
 				cpu->v[0xF] = 0;
 			}
-			cpu->v[n1] -= cpu->v[n2];
 			printf("command: subtract value of register v[%X] from register v[%X], new value is 0x%X\n", n2, n1, cpu->v[n1]);
 			break;
 		case 0x7: //code 8XY7: v[X] = v[Y] - v[X]
-			if (cpu->v[n2] >= cpu->v[n1]) {
+			uint8_t y = cpu->v[n2];
+			cpu->v[n1] = cpu->v[n2] - cpu->v[n1];
+			if (y >= cpu->v[n1]) {
 				cpu->v[0xF] = 1;
 			}
 			else {
 				cpu->v[0xF] = 0;
 			}
-			cpu->v[n1] = cpu->v[n2] - cpu->v[n1];
 			printf("command: subtract value of register v[%X] from register v[%X], new value is 0x%X\n", n1, n2, cpu->v[n1]);
 			break;
-		case 0x6: //bit shift once to the right
-			if (cpu->v[n1] & 0b00000001 == 1) { //if shifted bit is 1, set v[F] to 1, else set to 0
+		case 0x6: //code 8XY6: bit shift once to the right
+			x = cpu->v[n1];
+			cpu->v[n1] = cpu->v[n1] >> 1;
+			if (x & 0b00000001 == 1) { //if shifted bit is 1, set v[F] to 1, else set to 0
 				cpu->v[0xF] = 1;
 			}
 			else {
 				cpu->v[0xF] = 0;
 			}
-			cpu->v[n1] = cpu->v[n1] >> 1;
 			printf("command: bit shift register v[%X] to the right, new value is 0x%X\n", n1, cpu->v[n1]);
 			break;
-		case 0xE: //bit shift once to the left
-			if (cpu->v[n1] & 0b10000000 == 128) { //if shifted bit is 1, set v[F] to 1, else set to 0
+		case 0xE: //code 8XYE: bit shift once to the left
+			x = cpu->v[n1];
+			cpu->v[n1] = cpu->v[n1] << 1;
+			if (x & 0b10000000 == 128) { //if shifted bit is 1, set v[F] to 1, else set to 0
 				cpu->v[0xF] = 1;
 			}
 			else {
 				cpu->v[0xF] = 0;
 			}
-			cpu->v[n1] = cpu->v[n1] << 1;
 			printf("command: bit shift register v[%X] to the left, new value is 0x%X\n", n1, cpu->v[n1]);
 			break;
 		}
@@ -174,6 +182,14 @@ void decode(struct CPU* cpu, uint16_t ins) {
 	case SET_INDEX_REG:
 		cpu->i = &mem[addr];
 		printf("command: set index register to address 0x%p\n", cpu->i);
+		break;
+	case JUMP_OFFSET:
+		printf("command: jump with offset 0x%X to addr 0x%p\n", cpu->v[0x0], &mem[(addr+cpu->v[0x0])]);
+		setPC(cpu, &mem[(addr+cpu->v[0x0])]);
+		break;
+	case RANDOM:
+		cpu->v[n1] = (((rand() % val) + 1) & val);
+		printf("store random number 0x%X in v[%X]\n", cpu->v[n1], n1);
 		break;
 	case DISPLAY:
 		printf("command: draw to screen\n");
@@ -246,14 +262,14 @@ void decode(struct CPU* cpu, uint16_t ins) {
 		key = keyPressed();
 		switch (n3) {
 		case 0x7: //code FX07: set v[X] to value in delay timer
-			cpu->v[n1] = delay;
+			cpu->v[n1] = cpu->delay;
 			printf("command: set register v[%X] to value stored in delay, new value %X\n", n1, cpu->v[n1]);
 			break;
 		case 0x5:
 			switch (n2) {
 			case 0x1: //code FX15: set delay timer to value stored in v[X]
-				delay = cpu->v[n1];
-				printf("command: set delay timer to value stored in register v[%X], new value %X\n", n1, delay);
+				cpu->delay = cpu->v[n1];
+				printf("command: set delay timer to value stored in register v[%X], new value %X\n", n1, cpu->delay);
 				break;
 			case 0x5: //code FX55: store values from v[0]-v[X] in memory, starting from index
 				for (int reg = 0; reg <= n1; reg++) {
@@ -270,25 +286,28 @@ void decode(struct CPU* cpu, uint16_t ins) {
 			}
 			break;
 		case 0x8:
-			sound = cpu->v[n1];
-			printf("command: set sound timer to value stored in register v[%X], new value %X\n", n1, sound);
+			cpu->sound = cpu->v[n1];
+			printf("command: set sound timer to value stored in register v[%X], new value %X\n", n1, cpu->sound);
 			break;
 		case 0xE: //code FX1E: add v[X] to index
 			(uint8_t*)cpu->i += cpu->v[n1];
 			printf("command: add value stored in v[%X] to index, new addr 0x%p\n", n1, cpu->i);
 			break;
 		case 0xA: //code FX0A: set v[X] to scancode if key is pressed, otherwise repeat instruction
-			if (key != 0) {
+			if (key != 0xFF) {
 				cpu->v[n1] = key;
+				printf("command: set register v[%X] to scancode, scancode is 0x%X\n", n1, cpu->v[n1]);
 			}
 			else {
 				setPC(cpu, cpu->pc-1); //repeat instruction
+				printf("command: repeating instruction\n");
 			}
 			break;
 		case 0x3: //code FX33: take number in v[X] and convert to decimal
 			*(uint8_t*)cpu->i = cpu->v[n1] / 100;
 			*((uint8_t*)cpu->i+1) = (cpu->v[n1] / 10) % 10;
 			*((uint8_t*)cpu->i+2) = cpu->v[n1] % 10;
+			printf("command: convert value stored in v[%X] to decimal, value is 0x%X\n", n1, cpu->v[n1]);
 			break;
 		case 0x9: //code FX29: load font character
 			switch (n1) {
@@ -341,6 +360,7 @@ void decode(struct CPU* cpu, uint16_t ins) {
 				cpu->i = &mem[0x09B];
 				break;
 			}
+			printf("command: loaded font character\n");
 			break;
 		}
 		break;
@@ -377,5 +397,14 @@ uint16_t* pop(struct CPU* cpu) {
 		uint16_t* addr = stack[cpu->sp]; //can't do pointer math in the return statement so have to use a temp variable
 		cpu->sp--;
 		return addr;
+	}
+}
+
+void decreaseTimers(struct CPU* cpu) {
+	if (cpu->delay > 0) {
+		cpu->delay--;
+	}
+	if (cpu->sound > 0) {
+		cpu->sound--;
 	}
 }

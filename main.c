@@ -43,9 +43,10 @@ int main() {
 		return -1;
 	}
 
-	uint64_t currentTime, lastTime, deltaTime, deltaTime2;
+	uint64_t currentTime, lastTime, deltaTime, accumulator;
 	lastTime = SDL_GetTicksNS();
-	
+	accumulator = lastTime; //for tracking delay and sound timer updates
+
 	char fileName[50];
 	printf("Enter the file name that you would like to load: ");
 	if (scanf("%s", fileName) == 1) {
@@ -66,6 +67,11 @@ int main() {
 
 		if (deltaTime >= CPU_CLK) {
 			lastTime = currentTime;
+			accumulator += lastTime;
+			if (accumulator >= TIMER_CLK) {
+				accumulator = 0;
+				decreaseTimers(&cpu);
+			}
 			uint16_t ins = fetch(&cpu);
 			decode(&cpu, ins);
 		}

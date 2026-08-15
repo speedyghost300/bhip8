@@ -3,6 +3,7 @@
 
 #include <stdio.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include "res.h"
 #include "display.h"
 #include "ram.h"
@@ -10,6 +11,8 @@
 #include "keypad.h"
 
 struct CPU {
+	uint8_t delay; //delay timer
+	uint8_t sound; //sound timer
 	int8_t sp; //stack pointer
 	uint16_t *pc; //program counter
 	uint16_t *i; //index register
@@ -29,6 +32,8 @@ enum OPCODES {
 	LOGICAL = 0x8,
 	SKIP_XY_NE = 0x9,
 	SET_INDEX_REG = 0xA,
+	JUMP_OFFSET = 0xB,
+	RANDOM = 0xC,
 	DISPLAY = 0xD,
 	SKIP_IF_KEY = 0xE,
 	MISC = 0xF
@@ -51,6 +56,9 @@ void push(struct CPU* cpu, uint16_t* addr);
 
 //pop most recent address from stack
 uint16_t* pop(struct CPU* cpu);
+
+//for decrementing delay and sound timers
+void decreaseTimers(struct CPU* cpu);
 
 #endif
 
